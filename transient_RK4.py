@@ -17,7 +17,7 @@ Tinitial = 500  # K initial temperature
 N = 51  # number of nodes
 dx = L / (N - 1)  # spatial step
 domain = np.linspace(0, L, N)
-dt = 1e-4  # time step
+dt = 0.01  # time step
 total_time = 600  # s total time duration
 fractions = np.linspace(0, 5, N)
 time_intervals = fractions * total_time  # time intervals in seconds
@@ -44,6 +44,7 @@ for t in time_array:
 
 # Initialization
 T_numerical = np.zeros((len(domain), len(time_array)))
+T_numerical_mean = np.zeros((len(domain), len(time_array)))
 T_numerical[:, 0] = Tinitial  # Set initial condition for t=0
 aa = np.zeros(len(domain))
 bb = np.zeros(len(domain))
@@ -51,6 +52,9 @@ cc = np.zeros(len(domain))
 dd = np.zeros(len(domain))
 T_cap = np.zeros(len(domain))
 T_double_cap = np.zeros(len(domain))
+
+#relaxation factor
+rf = 0.6
 
 # Loop (Runge-Kutta method) p. 362 of the pdf 
 
@@ -89,8 +93,8 @@ for t in range(len(time_array) - 1):
             dd[i] = a * (T_cap[i + 1] - 2 * T_cap[i] + T_cap[i - 1]) / (dx ** 2)
         elif i == N - 1:
             dd[i] = 2 * a * (T_cap[i - 1] - T_cap[i]) / (dx ** 2)
-        T_numerical[i, t + 1] = T_numerical[i, t] + (aa[i] + 2 * bb[i] + 2 * cc[i] + dd[i]) * dt / 6
-
+        T_numerical_mean[i, t + 1] = T_numerical[i, t] + (aa[i] + 2 * bb[i] + 2 * cc[i] + dd[i]) * dt / 6
+        T_numerical[i,t+1] = T_numerical[i,t] + rf*(T_numerical_mean[i,t+1] - T_numerical[i,t])
 ##calculate error
 
 # Calculate error between the last time step values for T_analytical and T_numerical
