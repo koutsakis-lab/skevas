@@ -1,11 +1,23 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from io import StringIO
 import pandas as pd
-
+import requests
 
 # Load the Analytical solution .csv created in WebPlotDigitizer fig.3-43/p. 470 of the Nellis book pdf
-csv_path = 'C:/Users/user/Documents/GitHub/skevas/analytical_plot.csv'
-df_extracted = pd.read_csv(csv_path, header=None)
+
+# Click on the "Raw" button to get the raw URL (github.com) of the file.
+url = 'https://raw.githubusercontent.com/koutsakis-lab/skevas/main/analytical_plot.csv?token=GHSAT0AAAAAACT5TB3A4KAHZAGDCV4Z4746ZTVXOXQ'
+response = requests.get(url)
+
+if response.status_code == 200:
+    data = response.text
+    print(data)
+else:
+    print('Failed to fetch the file:', response.status_code)
+
+data_io = StringIO(data)
+df_extracted = pd.read_csv(data_io, header=None)
 
 # Rename columns for clarity
 df_extracted.columns = ['x', 'T']
