@@ -69,7 +69,6 @@ plt.title('Analytical Solution')
 plt.legend(loc='best')
 plt.grid(True)
 
-
 # Time steps to plot: 0, 4, 10, 20, 30, 40 seconds and the last time step
 selected_times = [0, 4, 10, 20, 30, 40, 600]
 
@@ -98,5 +97,4 @@ plt.xlabel('Position (m)')
 plt.ylabel('Temperature (K)')
 plt.legend()
 plt.grid(True)
-
 plt.show()
