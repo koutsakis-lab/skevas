@@ -13,7 +13,7 @@ materialDatabase = multilayerPropertiesArchitecture(iWallCase)
 
 k=np.array(materialDatabase.ThermalConductivity)
 rhoc=np.array(materialDatabase.Density \
-            * materialDatabase.SpecificHeatCapacity)``
+            * materialDatabase.SpecificHeatCapacity)
 
 L=np.array(materialDatabase.Thickness)
 
