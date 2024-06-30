@@ -13,21 +13,21 @@ materialDatabase = multilayerPropertiesArchitecture(iWallCase)
 
 k=np.array(materialDatabase.ThermalConductivity)
 rhoc=np.array(materialDatabase.Density \
-            * materialDatabase.SpecificHeatCapacity)
+            * materialDatabase.SpecificHeatCapacity)``
 
 L=np.array(materialDatabase.Thickness)
 
 NpL=np.array([36]) # [-] Nodes per layer
 
 # %% Import heat transfer data
-from codeDependencies.FiniteDifferenceSolverConverged import FiniteDifferenceSolverConverged
+from FiniteDifferenceSolverConverged import FiniteDifferenceSolverConverged
 
 # Setup time domain
 resWindowCA = 12 # [deg] Resolution window for highest heat flux frequency component
 EngRPM = 1200 # [rpm] Engine speed
 fCycle = EngRPM/60 # [Hz] Cyclic frequency
 
-fSignal = fCycle * 360/resWindowCA # [Hz] Highest heat flux signal frequency component
+fSignal = fCycle * 360/resWindowCA # [Hz] Highest heat flux  signal frequency component
 n = 2
 fSampling = n * fSignal # [Hz] Nyquist Sampling frequency
 numHarmonics = int(fSignal/fCycle)
@@ -45,7 +45,7 @@ f=numCycles                # [Hz] cyclic frequency
 Tc=0                     # [K] coolant temperature
 A_s=1                      #[m^2] surface area
 
-qFlux=BuildSurfaceHeatFlux.HeatFluxArtificial(θ/(θCycle*numCycles),f,q_prime,A_s,profile='triangular')
+qFlux=BuildSurfaceHeatFlux.HeatFluxArtificial(θ/(θCycle*numCycles),f,q_prime,A_s,profile='gauss')
 
 sizeOfθ=len(θ) # [-] Number of total time steps
 TwSteady=273+20 # [K] Coolant temperature

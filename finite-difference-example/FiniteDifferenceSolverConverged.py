@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from codeDependencies.BuildMatrices import BuildMatrices
+from BuildMatrices import BuildMatrices
 from scipy.sparse.linalg import spsolve
 
 def FiniteDifferenceSolverConverged(k,rhoc,L,NpL,Δ,sizeOfθ,TwSteady,qFlux):
