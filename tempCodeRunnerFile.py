@@ -1,0 +1,1 @@
+Gx = T_numerical[N-1, t ]
