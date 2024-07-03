@@ -44,6 +44,7 @@ elif len(df_Twall) < len(time_array):
 
 # Initialize heat flux
 q = np.full(len(time_array) - 1, q_initial)  # Initialize with q_initial
+q_calculated = np.zeros_like(q)
 
 # Adjust matrices for the cost function
 B = 1 * np.eye(1)  # Background error covariance matrix
@@ -76,19 +77,19 @@ for t in range(len(time_array) - 1):
             T_numerical[i, t + 1] = T_numerical[i, t] + a * dt * (T_numerical[i + 1, t] - 2 * T_numerical[i, t] + T_numerical[i - 1, t]) / (dx**2)
         elif i == N - 1:
             # Apply the boundary condition at x = L with heat flux
-            T_numerical[i, t + 1] = T_numerical[i, t] + 2 * a * dt * (T_numerical[i - 1, t] - T_numerical[i, t]) / (dx**2)
-        q[t] = k * (T_numerical[N-1, t] - T_numerical[N-2, t]) / dx
+            T_numerical[i, t + 1] = T_numerical[i, t] + 2 * a * dt * (T_numerical[i - 1, t] - T_numerical[i, t]) / (dx**2) + q[t] * dt / (rho * c * dx)
+        q_calculated[t] = k * (T_numerical[N-1, t] - T_numerical[N-2, t]) / dx
 
     # Observation and model output at the first node (x = 0)
     y0 = df_Twall['Twall'][t]
     T0 = T_numerical[0, t + 1]  # Directly use the temperature at the first node (x = 0)
 
     # Optimize the heat flux for the current time step
-    res = minimize(cost_function, q[t], args=(q[t], y0, T0), method='L-BFGS-B')
+    res = minimize(cost_function, q_calculated[t], args=(q_calculated[t], y0, T0), method='L-BFGS-B')
 
-    # Print the cost function value for the first 20 time steps
-    if t < 20:
-        cost_value = cost_function(res.x[0], q[t], y0, T0)
+    # Print the cost function value for the first 30 time steps
+    if t < 30:
+        cost_value = cost_function(res.x[0], q_calculated[t], y0, T0)
         print(f"Time step {t+1}, Cost function value: {cost_value}, Optimized q: {res.x[0]}")
 
     # Update heat flux and store the result
