@@ -2,32 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.optimize import minimize
-from io import StringIO
-import requests
-
-# Function to fetch CSV data from a URL
-def fetch_csv_data(url):
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = response.text
-        data_io = StringIO(data)
-        df = pd.read_csv(data_io, header=None)
-        return df
-    else:
-        print('Failed to fetch the file:', response.status_code)
-        return None
-
-# URLs for Tgas and Twall values
-url_tgas = 'https://dummy-url.com/tgas_values.csv'
-url_twall = 'https://dummy-url.com/twall_values.csv'
-
-# Fetch the data
-df_Tgas = fetch_csv_data(url_tgas)
-df_Twall = fetch_csv_data(url_twall)
-
-# Rename columns for clarity
-df_Tgas.columns = ['Time', 'Tgas']
-df_Twall.columns = ['Time', 'Twall']
 
 # Geometric and material parameters
 L = 0.15  # m chamber wall thickness
@@ -51,7 +25,7 @@ cfl = a * dt / dx**2
 print("CFL:", cfl)
 
 # Load Tgas and Twall values from the .xlsx files
-file_path_tgas = 'C:/Users/user/Desktop/python/Tgas_values.xlsx'
+file_path_tgas = 'C:/Users/user/Desktop/python/Tgas_values_new.xlsx'
 file_path_twall = 'C:/Users/user/Desktop/python/Twall_values.xlsx'
 
 df_Tgas = pd.read_excel(file_path_tgas)
@@ -72,17 +46,9 @@ elif len(df_Twall) < len(time_array):
 q = np.full(len(time_array) - 1, q_initial)  # Initialize with q_initial
 q_calculated = np.zeros_like(q)
 
-# Thermocouple properties
-fsd_error = 0.0075  # 0.75% FSD error
-response_time = 0.27  # s response time
-
-# Background and observation error standard deviations
-sigma_background = fsd_error * q_initial
-sigma_observation = fsd_error * np.mean(df_Twall['Twall'])  # Assuming Twall is the observation
-
 # Adjust matrices for the cost function
-B = sigma_background**2 * np.eye(1)  # Background error covariance matrix
-R = sigma_observation**2 * np.eye(1)  # Observation error covariance matrix
+B = 40 * np.eye(1)  # Background error covariance matrix
+R = 200 * np.eye(1)  # Observation error covariance matrix
 
 # Numerical solution (Euler method)
 # Initialization
@@ -99,8 +65,6 @@ def cost_function(x, xb, y0, T0):
     term2 = 0.5 * (y0 - T0).T @ np.linalg.inv(R) @ (y0 - T0)
     return term1 + term2
 
-cost_values = []  # List to store cost function values over time
-
 # Compute the numerical solution and optimize heat flux
 for t in range(len(time_array) - 1):
     T_numerical[N-1, t] = df_Tgas['Tgas'][t]  # Apply Tgas as the boundary condition at x = L
@@ -115,20 +79,18 @@ for t in range(len(time_array) - 1):
             # Apply the boundary condition at x = L with heat flux
             T_numerical[i, t + 1] = T_numerical[i, t] + 2 * a * dt * (T_numerical[i - 1, t] - T_numerical[i, t]) / (dx**2) + q[t] * dt / (rho * c * dx)
         q_calculated[t] = k * (T_numerical[N-1, t] - T_numerical[N-2, t]) / dx
+
     # Observation and model output at the first node (x = 0)
     y0 = df_Twall['Twall'][t]
-    T0 = T_numerical[0, t]  # Directly use the temperature at the first node (x = 0)
+    T0 = T_numerical[0, t + 1]  # Directly use the temperature at the first node (x = 0)
 
     # Optimize the heat flux for the current time step
     res = minimize(cost_function, q_calculated[t], args=(q_calculated[t], y0, T0), method='L-BFGS-B')
 
-    # Store the cost function value
-    cost_value = cost_function(res.x[0], q_calculated[t], y0, T0)
-    cost_values.append(cost_value)
-
     # Print the cost function value for the first 30 time steps
     if t < 30:
-        print(f"Time step {t+1}, Cost function value: {cost_value}, Optimized q: {res.x[0]}, T(x=0): {T0}, y0: {y0}")
+        cost_value = cost_function(res.x[0], q_calculated[t], y0, T0)
+        print(f"Time step {t+1}, Cost function value: {cost_value}, Optimized q: {res.x[0]}")
 
     # Update heat flux and store the result
     if t < len(time_array) - 2:
@@ -154,15 +116,6 @@ plt.plot(time_array[:-1], q, label='Heat Flux at First Node')
 plt.title('Heat Flux at First Node Over Time')
 plt.xlabel('Time (s)')
 plt.ylabel('Heat Flux (W/m^2)')
-plt.legend()
-plt.grid(True)
-
-# Plot cost function value over time
-plt.figure(figsize=(8, 6))
-plt.plot(time_array[:-1], cost_values, label='Cost Function Value')
-plt.title('Cost Function Value Over Time')
-plt.xlabel('Time (s)')
-plt.ylabel('Cost Function Value')
 plt.legend()
 plt.grid(True)
 
