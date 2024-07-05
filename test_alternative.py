@@ -2,6 +2,35 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.optimize import minimize
+import requests
+from io import StringIO
+
+# Function to fetch CSV data from a GitHub repository using the raw URL
+def fetch_csv_data(url):
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.text
+        data_io = StringIO(data)
+        df = pd.read_csv(data_io)
+        return df
+    else:
+        print('Failed to fetch the file:', response.status_code)
+        return None
+
+# URLs for Tgas and Twall values 
+url_tgas = 'https://raw.githubusercontent.com/koutsakis-lab/skevas/main/Tgas_values_csv.csv?token=GHSAT0AAAAAACT5OM6VKIPRJ5LTKG2XPLACZUIKH7A'
+url_twall = 'https://raw.githubusercontent.com/koutsakis-lab/skevas/main/Twall_values_csv.csv?token=GHSAT0AAAAAACT5OM6UQM34PAUW3V43JZNQZUIKI6A'
+
+# Fetch the data
+df_Tgas = fetch_csv_data(url_tgas)
+df_Twall = fetch_csv_data(url_twall)
+
+if df_Tgas is None or df_Twall is None:
+    raise ValueError("Failed to fetch one or both of the required data files.")
+
+# Rename columns for clarity
+df_Tgas.columns = ['Time', 'Tgas']
+df_Twall.columns = ['Time', 'Twall']
 
 # Geometric and material parameters
 L = 0.15  # m chamber wall thickness
@@ -24,13 +53,6 @@ time_array = np.arange(0, total_time + dt, dt)
 cfl = a * dt / dx**2
 print("CFL:", cfl)
 
-# Load Tgas and Twall values from the .xlsx files
-file_path_tgas = 'C:/Users/user/Desktop/python/Tgas_values_new.xlsx'
-file_path_twall = 'C:/Users/user/Desktop/python/Twall_values.xlsx'
-
-df_Tgas = pd.read_excel(file_path_tgas)
-df_Twall = pd.read_excel(file_path_twall)
-
 # Ensure time steps in Tgas and Twall match with time_array
 if len(df_Tgas) > len(time_array):
     df_Tgas = df_Tgas.iloc[:len(time_array)]
@@ -46,24 +68,35 @@ elif len(df_Twall) < len(time_array):
 q = np.full(len(time_array) - 1, q_initial)  # Initialize with q_initial
 q_calculated = np.zeros_like(q)
 
+# Thermocouple properties
+fsd_error = 0.0075  # 0.75% FSD error
+response_time = 0.27  # s response time
+
+# Background and observation error standard deviations
+sigma_background = fsd_error * q_initial
+sigma_observation = fsd_error * np.mean(df_Twall['Twall'])  # Assuming Twall is the observation
+
 # Adjust matrices for the cost function
-B = 40 * np.eye(1)  # Background error covariance matrix
-R = 200 * np.eye(1)  # Observation error covariance matrix
+B = sigma_background**2 * np.eye(1)  # Background error covariance matrix
+R = sigma_observation**2 * np.eye(1)  # Observation error covariance matrix
 
 # Numerical solution (Euler method)
 # Initialization
 T_numerical = np.zeros((len(domain), len(time_array)))
 T_numerical[:, 0] = Tinitial  # Set initial condition for t=0
 
-# Function to compute the cost
+# Function to compute the cost with regularization
 def cost_function(x, xb, y0, T0):
+    regularization = 0.01 * np.sum(np.square(np.diff(x)))  # Regularization term
     x = np.array([x])
     xb = np.array([xb])
     y0 = np.array([y0])
     T0 = np.array([T0])
     term1 = 0.5 * (x - xb).T @ np.linalg.inv(B) @ (x - xb)
     term2 = 0.5 * (y0 - T0).T @ np.linalg.inv(R) @ (y0 - T0)
-    return term1 + term2
+    return term1 + term2 + regularization
+
+cost_values = []  # List to store cost function values over time
 
 # Compute the numerical solution and optimize heat flux
 for t in range(len(time_array) - 1):
@@ -85,12 +118,15 @@ for t in range(len(time_array) - 1):
     T0 = T_numerical[0, t + 1]  # Directly use the temperature at the first node (x = 0)
 
     # Optimize the heat flux for the current time step
-    res = minimize(cost_function, q_calculated[t], args=(q_calculated[t], y0, T0), method='L-BFGS-B')
+    res = minimize(cost_function, q_calculated[t], args=(q_calculated[t], y0, T0), method='Nelder-Mead')
+
+    # Store the cost function value
+    cost_value = cost_function(res.x[0], q_calculated[t], y0, T0)
+    cost_values.append(cost_value)
 
     # Print the cost function value for the first 30 time steps
     if t < 30:
-        cost_value = cost_function(res.x[0], q_calculated[t], y0, T0)
-        print(f"Time step {t+1}, Cost function value: {cost_value}, Optimized q: {res.x[0]}")
+        print(f"Time step {t+1}, Cost function value: {cost_value}, Optimized q: {res.x[0]}, y0: {y0}")
 
     # Update heat flux and store the result
     if t < len(time_array) - 2:
@@ -99,7 +135,6 @@ for t in range(len(time_array) - 1):
 # Plot numerical solution for selected time steps
 selected_times = [0, 4, 10, 20, 30, 40]
 selected_indices = [np.abs(time_array - sec).argmin() for sec in selected_times]
-
 plt.figure(figsize=(8, 6))
 for idx in selected_indices:
     sec = time_array[idx]

@@ -3,34 +3,35 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.optimize import minimize
 import requests
-from io import BytesIO
+from io import StringIO
 
-# Function to fetch XLSX data from a GitHub repository using the GitHub API
-def fetch_xlsx_data(url):
-    headers = {
-        'Accept': 'application/vnd.github.v3.raw',
-    }
-    response = requests.get(url, headers=headers)
+# Function to fetch CSV data from a GitHub repository using the raw URL
+def fetch_csv_data(url):
+    response = requests.get(url)
     if response.status_code == 200:
-        data = response.content
-        data_io = BytesIO(data)
-        df = pd.read_excel(data_io)
+        data = response.text
+        data_io = StringIO(data)
+        df = pd.read_csv(data_io)
         return df
     else:
         print('Failed to fetch the file:', response.status_code)
         return None
 
-# URLs for Tgas and Twall values
-url_tgas = 'https://api.github.com/repos/koutsakis-lab/skevas/contents/Tgas_values.xlsx'
-url_twall = 'https://api.github.com/repos/koutsakis-lab/skevas/contents/Twall_values.xlsx'
+# URLs for Tgas and Twall values (Replace with the actual raw URLs of your CSV files)
+url_tgas = 'https://raw.githubusercontent.com/koutsakis-lab/skevas/main/Tgas_values_csv.csv?token=GHSAT0AAAAAACT5OM6VKIPRJ5LTKG2XPLACZUIKH7A'
+url_twall = 'https://raw.githubusercontent.com/koutsakis-lab/skevas/main/Twall_values_csv.csv?token=GHSAT0AAAAAACT5OM6UQM34PAUW3V43JZNQZUIKI6A'
 
 # Fetch the data
-df_Tgas = fetch_xlsx_data(url_tgas)
-df_Twall = fetch_xlsx_data(url_twall)
+df_Tgas = fetch_csv_data(url_tgas)
+df_Twall = fetch_csv_data(url_twall)
+
+if df_Tgas is None or df_Twall is None:
+    raise ValueError("Failed to fetch one or both of the required data files.")
 
 # Rename columns for clarity
 df_Tgas.columns = ['Time', 'Tgas']
 df_Twall.columns = ['Time', 'Twall']
+
 # Geometric and material parameters
 L = 0.15  # m chamber wall thickness
 rho = 8900  # kg/m^3 density
