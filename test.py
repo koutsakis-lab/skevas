@@ -2,33 +2,35 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.optimize import minimize
-from io import StringIO
 import requests
+from io import BytesIO
 
-# Function to fetch CSV data from a URL
-def fetch_csv_data(url):
-    response = requests.get(url)
+# Function to fetch XLSX data from a GitHub repository using the GitHub API
+def fetch_xlsx_data(url):
+    headers = {
+        'Accept': 'application/vnd.github.v3.raw',
+    }
+    response = requests.get(url, headers=headers)
     if response.status_code == 200:
-        data = response.text
-        data_io = StringIO(data)
-        df = pd.read_csv(data_io, header=None)
+        data = response.content
+        data_io = BytesIO(data)
+        df = pd.read_excel(data_io)
         return df
     else:
         print('Failed to fetch the file:', response.status_code)
         return None
 
 # URLs for Tgas and Twall values
-url_tgas = 'https://dummy-url.com/tgas_values.csv'
-url_twall = 'https://dummy-url.com/twall_values.csv'
+url_tgas = 'https://api.github.com/repos/koutsakis-lab/skevas/contents/Tgas_values.xlsx'
+url_twall = 'https://api.github.com/repos/koutsakis-lab/skevas/contents/Twall_values.xlsx'
 
 # Fetch the data
-df_Tgas = fetch_csv_data(url_tgas)
-df_Twall = fetch_csv_data(url_twall)
+df_Tgas = fetch_xlsx_data(url_tgas)
+df_Twall = fetch_xlsx_data(url_twall)
 
 # Rename columns for clarity
 df_Tgas.columns = ['Time', 'Tgas']
 df_Twall.columns = ['Time', 'Twall']
-
 # Geometric and material parameters
 L = 0.15  # m chamber wall thickness
 rho = 8900  # kg/m^3 density
@@ -128,7 +130,7 @@ for t in range(len(time_array) - 1):
 
     # Print the cost function value for the first 30 time steps
     if t < 30:
-        print(f"Time step {t+1}, Cost function value: {cost_value}, Optimized q: {res.x[0]}, T(x=0): {T0}, y0: {y0}")
+        print(f"Time step {t+1}, Cost function value: {cost_value}, Optimized q: {res.x[0]}, y0: {y0}")
 
     # Update heat flux and store the result
     if t < len(time_array) - 2:
