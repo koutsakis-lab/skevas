@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sourceCode.responseFunctions import wallTimeResponse
 from sourceCode.BuildSurfaceHeatFlux import HeatFlux
+import requests
 from io import StringIO
 
 def fetch_csv_data(url):
@@ -24,7 +25,7 @@ url_qFlux = 'https://raw.githubusercontent.com/koutsakis-lab/skevas/main/heat-tr
 df_Tgas = fetch_csv_data(url_tgas)
 df_qFlux = fetch_csv_data(url_qFlux)
 
-if df_Tgas is None or df_Twall is None:
+if df_Tgas is None or df_qFlux is None:
     raise ValueError("Failed to fetch one or both of the required data files.")
 
 # %% Import properties
