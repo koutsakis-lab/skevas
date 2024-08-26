@@ -54,11 +54,11 @@ cfl = a * dt / dx**2
 print("CFL:", cfl)
 
 # Load Tgas and Twall values from the .xlsx files
-file_path_tgas = 'C:/Users/user/Desktop/python/Tgas_values.xlsx'
-file_path_twall = 'C:/Users/user/Desktop/python/Twall_values.xlsx'
+#file_path_tgas = 'C:/Users/user/Desktop/python/Tgas_values.xlsx'
+#file_path_twall = 'C:/Users/user/Desktop/python/Twall_values.xlsx'
 
-df_Tgas = pd.read_excel(file_path_tgas)
-df_Twall = pd.read_excel(file_path_twall)
+#df_Tgas = pd.read_excel(file_path_tgas)
+#df_Twall = pd.read_excel(file_path_twall)
 
 # Ensure time steps in Tgas and Twall match with time_array
 if len(df_Tgas) > len(time_array):
@@ -75,7 +75,7 @@ elif len(df_Twall) < len(time_array):
 q = np.full(len(time_array) - 1, q_initial)  # Initialize with q_initial
 q_calculated = np.zeros_like(q)
 
-# Thermocouple properties
+# Thermocouple properties, from  https://doi.org/10.2514/1.A34840
 fsd_error = 0.0075  # 0.75% FSD error
 response_time = 0.27  # s response time
 
@@ -136,6 +136,21 @@ for t in range(len(time_array) - 1):
     # Update heat flux and store the result
     if t < len(time_array) - 2:
         q[t + 1] = res.x[0]  # Ensure we extract a single element from the array
+
+
+# Extract Tnumerical at x=0 for all time steps
+T_numerical_x0 = T_numerical[0, :]
+
+# Create a DataFrame with the extracted values
+df_Tnumerical_x0 = pd.DataFrame({
+    'Time': time_array,
+    'T_numerical_x0': T_numerical_x0
+})
+
+# Save the DataFrame to an Excel file
+file_path = 'C:/Users/user/Documents/GitHub/skevas/Tnumerical_x0.xlsx'
+df_Tnumerical_x0.to_excel(file_path, index=False)
+
 
 # Plot numerical solution for selected time steps
 selected_times = [0, 4, 10, 20, 30, 40]
