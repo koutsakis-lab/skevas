@@ -7,8 +7,8 @@ def multilayerPropertiesArchitecture(iCoatCase):
     fname     =r'Multilayer Architecture - Case '+str(iCoatCase)+'.xlsx'
     
     df=pd.read_excel(folder_dir+fname,sheet_name='Sheet1',header=None\
-                            ,skiprows=[0,1],usecols='A,B,C,D,E')
+                            ,skiprows=[0,1],usecols='A,B,C,D,E,F,G')
     df.columns=['Name','ThermalConductivity','Density','SpecificHeatCapacity',
-                'Thickness']
+                'Thickness','YoungsModulus','Stress']
     
     return df

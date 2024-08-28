@@ -1,48 +1,38 @@
+#-*- coding: utf-8 -*-
+#import scipy.io
 import numpy as np
 import matplotlib.pyplot as plt
-import pandas as pd
 from sourceCode.responseFunctions import wallTimeResponse
 from sourceCode.BuildSurfaceHeatFlux import HeatFlux
-import requests
-from io import StringIO
-
-def fetch_csv_data(url):
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = response.text
-        data_io = StringIO(data)
-        df = pd.read_csv(data_io)
-        return df
-    else:
-        print('Failed to fetch the file:', response.status_code)
-        return None
-
-# URLs for Tgas and Twall values (Replace with the actual raw URLs of your CSV files)
-url_tgas = 'https://raw.githubusercontent.com/koutsakis-lab/skevas/main/heat-transfer-solver-Skevas-2024/Temperature_vs_Time_csv.csv'
-url_qFlux = 'https://raw.githubusercontent.com/koutsakis-lab/skevas/main/heat-transfer-solver-Skevas-2024/HeatFlux_vs_Time_csv.csv'
-
-# Fetch the data
-df_Tgas = fetch_csv_data(url_tgas)
-df_qFlux = fetch_csv_data(url_qFlux)
-
-if df_Tgas is None or df_qFlux is None:
-    raise ValueError("Failed to fetch one or both of the required data files.")
+import time
+tic=time.time()
 
 # %% Import properties
 from MultilayerArchitecturesLibrary.importWallData import multilayerPropertiesArchitecture
 
-iWallCase = 3
+iWallCase=3
 materialDatabase = multilayerPropertiesArchitecture(iWallCase)
 
-# Assuming the arrays have single values, we extract them as scalars.
-k = np.array(materialDatabase.ThermalConductivity).item()
-rhoc = np.array(materialDatabase.Density * materialDatabase.SpecificHeatCapacity).item()
-L = np.array(materialDatabase.Thickness).item()
-
-R = L / k
-C = rhoc * L
+k=np.array(materialDatabase.ThermalConductivity)
+rhoc=np.array(materialDatabase.Density \
+            * materialDatabase.SpecificHeatCapacity)
+# fix depending on where you want to measure temperature
+L=np.array(materialDatabase.Thickness)
+E = np.array(materialDatabase.YoungsModulus)
+sigma = np.array(materialDatabase.Stress)
+print("E:", E, "Pa")
+print("sigma:", sigma, "Pa")
+R=L/k
+C=rhoc*L
 
 a = k / rhoc  # m^2/s thermal diffusivity constant
+
+thermal_shock_resistance = (k*sigma)/(a*E)
+chamber_pressure = 35*101325 #Pa
+print("maximum chamber pressure:", chamber_pressure, "Pa")
+print("thermal shock resistance parameter:", thermal_shock_resistance)
+Delta_L = 500e-6 #m expansion (arbitrary)
+
 
 # Constants given in the document
 Tinitial = 293  # Initial temperature in K
@@ -53,48 +43,60 @@ N = 11  # number of nodes
 dx = L / (N - 1)  # spatial step
 domain = np.linspace(0, L, N)
 
-resWindowCA = 1  # [deg] Resolution window for highest heat flux frequency component
-EngRPM = 3e03  # [rpm] Engine speed
-fCycle = EngRPM / 60  # [Hz] Cyclic frequency
 
-fSignal = fCycle * 360 / resWindowCA  # [Hz] Highest heat flux signal frequency component
+# %% Setup time domain
+resWindowCA = 1 # [deg] Resolution window for highest heat flux frequency component
+EngRPM = 3e03 # [rpm] Engine speed
+fCycle = EngRPM/60 # [Hz] Cyclic frequency
+
+fSignal = fCycle * 360/resWindowCA # [Hz] Highest heat flux signal frequency component
 n = 2
-fSampling = n * fSignal  # [Hz] Nyquist Sampling frequency
-numHarmonics = int(fSignal / fCycle)
-ωSampling = 2 * np.pi * fCycle * np.linspace(0, numHarmonics, numHarmonics, dtype=int)
-Δ = 1 / fSampling
+fSampling = n * fSignal # [Hz] Nyquist Sampling frequency
+numHarmonics = int(fSignal/fCycle)
+ωSampling = 2*np.pi*fCycle * np.linspace(0,numHarmonics,numHarmonics,dtype=int)
+Δ=1/fSampling
 dt = Δ  # time step
-numCycles = 1  # [-] Number of cycles
-θCycle = 1 / fCycle  # [s] Cycle period
-θ = np.arange(0, θCycle * numCycles, Δ)
-sizeOfθ = len(θ)
-sizeOfθCycle = int(sizeOfθ / numCycles)
+print("dt:", 1000*dt, "ms")
+# %%
+numCycles = 1 # [-] Number of cycles
+θCycle=1/fCycle # [s] Cycle period
+θ=np.arange(0,θCycle*numCycles,Δ)
+sizeOfθ=len(θ)
+sizeOfθCycle=int(sizeOfθ/numCycles)
+# %% Heat Flux
+q_prime=16e6 # [W/m^2] applied heat flux at surface
+f=numCycles # [Hz] cyclic frequency
+T_backside=500 # [K] Coolant temperature
+A_s=1 #[m^2] surface area
 total_time = θ[-1]  # Use the last element of θ as the total time duration
 time_array = np.arange(0, total_time + dt, dt)
 cfl = a * dt / dx**2
+material_time_constant = (L**2)/a
 print("CFL:", cfl)
+print("material time constant:", material_time_constant, "s") 
 
-# Load Tgas and Twall values from the .xlsx files
-file_path_tgas = 'C:/Users/user/Documents/GitHub/skevas/heat-transfer-solver-Skevas-2024/Temperature_vs_Time.xlsx'
+qFlux=HeatFlux(θ/(θCycle*numCycles),f,q_prime,A_s,profile='gauss')
 
-file_path_qFlux = 'C:/Users/user/Documents/GitHub/skevas/heat-transfer-solver-Skevas-2024/HeatFlux_vs_Time.xlsx'
+# %% 
 
-df_Tgas = pd.read_excel(file_path_tgas)
+iInterface = 0
+locOfX=[0]
+X= wallTimeResponse(Δ,sizeOfθCycle,R,C,locOfX)
 
-df_qFlux = pd.read_excel(file_path_qFlux)
+# Calculate the number of engine cycles required to attenuate the response below the tolerance threshold
+numCycles = int(np.size(X[iInterface])/sizeOfθCycle) # [-] Number of cycles
+sizeOfθ = np.size(X[iInterface])
 
-# Ensure time steps in Tgas and Twall match with time_array
-if len(df_Tgas) > len(time_array):
-    df_Tgas = df_Tgas.iloc[:len(time_array)]
-elif len(df_Tgas) < len(time_array):
-    df_Tgas = df_Tgas.reindex(range(len(time_array)), method='nearest')
+q_guess = 16e6 # [W/m2] Initial heat flux estimate
+T_initialEffect = q_guess*(np.sum(R[iInterface:])-np.cumsum(X[iInterface]))
 
+T = np.convolve(np.tile(qFlux, numCycles), X[iInterface])[:sizeOfθ] + T_backside + T_initialEffect
+T = T[-sizeOfθCycle:]
 
+# store sustained response of a single (last) cycle
+Ymeasured = T # recorded surface temperature data
+Ymeasured = np.tile(Ymeasured, numCycles)
 
-if len(df_qFlux) > len(time_array):
-    df_qFlux = df_qFlux.iloc[:len(time_array)]
-elif len(df_qFlux) < len(time_array):
-    df_qFlux = df_qFlux.reindex(range(len(time_array)), method='nearest')
 
 # Numerical solution (Euler method)
 # Initialization
@@ -103,28 +105,54 @@ T_numerical[:, 0] = Tinitial  # Set initial condition for t=0
 
 # Compute the numerical solution and optimize heat flux
 for t in range(len(time_array) - 1):
-    T_numerical[N-1, t] = df_Tgas['Temperature (K)'][t]  # Apply Tgas as the boundary condition at x = L
+    T_numerical[0, t] = T[t]   # Apply surface temperature as the boundary condition at x = 0
 
     # Update the numerical solution for the next time step
     for i in range(N):
         if i == 0:
-            T_numerical[i, t + 1] = T_numerical[i, t] + 2 * a * dt * (T_numerical[i + 1, t] - T_numerical[i, t]) / (dx**2)
+            T_numerical[i, t + 1] = T_numerical[i, t] + 2 * a * dt * (T_numerical[i + 1, t] - T_numerical[i, t]) / (dx**2) + qFlux[t] * dt / (rhoc * dx)  
         elif 1 <= i < N - 1:
             T_numerical[i, t + 1] = T_numerical[i, t] + a * dt * (T_numerical[i + 1, t] - 2 * T_numerical[i, t] + T_numerical[i - 1, t]) / (dx**2)
         elif i == N - 1:
             # Apply the boundary condition at x = L with heat flux
-            T_numerical[i, t + 1] = T_numerical[i, t] + 2 * a * dt * (T_numerical[i - 1, t] - T_numerical[i, t]) / (dx**2) + df_qFlux['Heat Flux (W/m^2)'][t] * dt / (rhoc * dx)
+            T_numerical[i, t + 1] = T_numerical[i, t] + 2 * a * dt * (T_numerical[i - 1, t] - T_numerical[i, t]) / (dx**2)
 
-# Plot numerical solution for every 10th time step
-plt.figure(figsize=(8, 6))
-for t in range(0, len(time_array), 40):  # Step through time_array by 10
-    plt.plot(domain, T_numerical[:, t])
+min_length = min(len(T), len(T_numerical[N-1, :]))
+T = T[:min_length]
+T_numerical_N1 = T_numerical[N-1, :min_length]
 
-plt.title('Numerical Temperature Distribution (Euler)')
-plt.xlabel('Position (m)')
-plt.ylabel('Temperature (K)')
+# Now you can calculate the temperature difference and find the maximum difference
+Delta_T = np.argmin(T - T_numerical_N1)
+
+# Calculate the thermal expansion coefficient
+CTE = Delta_L / (L * Delta_T)
+print("Thermal expansion coefficient:", CTE, "1/K")
+
+# Plot
+fig, ax1 = plt.subplots(figsize=(10, 6))
+
+# Plot heat flux on the left y-axis
+ax1.plot(θ, qFlux, '--k', label='Heat Flux')
+ax1.set_xlabel('Time [s]')
+ax1.set_ylabel('Heat Flux [W/m²]', color='black')
+ax1.tick_params(axis='y', labelcolor='black')
+
+# Create a second y-axis for the temperatures
+ax2 = ax1.twinx()
+ax2.plot(θ, T, '-k', label='Surface Temperature')
+ax2.plot(time_array, T_numerical[N-1, :], '-r', label='Substrate Temperature')
+ax2.set_ylabel('Temperature [K]', color='black')
+ax2.tick_params(axis='y', labelcolor='black')
+
+# Adding legends
+ax1.legend(loc='upper left')
+ax2.legend(loc='upper right')
+
+# Show plot
+plt.title('Heat Flux and Temperature over Time')
 plt.grid(True)
-plt.show()
-
 
 plt.show()
+# %% 
+toc=time.time(); 
+print('Elapsed time:',toc-tic, 'seconds')
