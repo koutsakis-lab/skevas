@@ -1,5 +1,4 @@
 #-*- coding: utf-8 -*-
-#import scipy.io
 import numpy as np
 import matplotlib.pyplot as plt
 from sourceCode.responseFunctions import wallTimeResponse
@@ -10,7 +9,7 @@ tic=time.time()
 # %% Import properties
 from MultilayerArchitecturesLibrary.importWallData import multilayerPropertiesArchitecture
 
-iWallCase=3
+iWallCase=2
 materialDatabase = multilayerPropertiesArchitecture(iWallCase)
 
 k=np.array(materialDatabase.ThermalConductivity)
@@ -117,14 +116,14 @@ for t in range(len(time_array) - 1):
             # Apply the boundary condition at x = L with heat flux
             T_numerical[i, t + 1] = T_numerical[i, t] + 2 * a * dt * (T_numerical[i - 1, t] - T_numerical[i, t]) / (dx**2)
 
+# Calculate the thermal expansion coefficient
 min_length = min(len(T), len(T_numerical[N-1, :]))
 T = T[:min_length]
 T_numerical_N1 = T_numerical[N-1, :min_length]
 
-# Now you can calculate the temperature difference and find the maximum difference
 Delta_T = np.argmin(T - T_numerical_N1)
 
-# Calculate the thermal expansion coefficient
+
 CTE = Delta_L / (L * Delta_T)
 print("Thermal expansion coefficient:", CTE, "1/K")
 
